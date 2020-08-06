@@ -372,20 +372,20 @@ class StyledConvBlock(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, code_dim, fused=True):
+    def __init__(self, code_dim, num_classes=10, fused=True):
         super().__init__()
 
         self.progression = nn.ModuleList(
             [
-                StyledConvBlock(512, 512, 3, 1, initial=True),  # 4
-                StyledConvBlock(512, 512, 3, 1, upsample=True),  # 8
-                StyledConvBlock(512, 512, 3, 1, upsample=True),  # 16
-                StyledConvBlock(512, 512, 3, 1, upsample=True),  # 32
-                StyledConvBlock(512, 256, 3, 1, upsample=True),  # 64
-                StyledConvBlock(256, 128, 3, 1, upsample=True, fused=fused),  # 128
-                StyledConvBlock(128, 64, 3, 1, upsample=True, fused=fused),  # 256
-                StyledConvBlock(64, 32, 3, 1, upsample=True, fused=fused),  # 512
-                StyledConvBlock(32, 16, 3, 1, upsample=True, fused=fused),  # 1024
+                StyledConvBlock(512, 512, 3, 1, initial=True, style_dim=code_dim + num_classes),  # 4
+                StyledConvBlock(512, 512, 3, 1, style_dim=code_dim + num_classes),  # 8
+                StyledConvBlock(512, 512, 3, 1, style_dim=code_dim + num_classes),  # 16
+                StyledConvBlock(512, 512, 3, 1, style_dim=code_dim + num_classes),  # 32
+                StyledConvBlock(512, 256, 3, 1, style_dim=code_dim + num_classes),  # 64
+                StyledConvBlock(256, 128, 3, 1, style_dim=code_dim + num_classes),  # 128
+                StyledConvBlock(128, 64, 3, 1, style_dim=code_dim + num_classes),  # 256
+                StyledConvBlock(64, 32, 3, 1, style_dim=code_dim + num_classes),  # 512
+                StyledConvBlock(32, 16, 3, 1, style_dim=code_dim + num_classes),  # 1024
             ]
         )
 
@@ -404,8 +404,9 @@ class Generator(nn.Module):
         )
 
         # self.blur = Blur()
+        self.label_emb = nn.Embedding(num_classes, num_classes)
 
-    def forward(self, style, noise, step=0, alpha=-1, mixing_range=(-1, -1)):
+    def forward(self, style, labels, noise, step=0, alpha=-1, mixing_range=(-1, -1)):
         out = noise[0]
 
         if len(style) < 2:
@@ -429,7 +430,8 @@ class Generator(nn.Module):
 
                 else:
                     style_step = style[0]
-
+            label_embeddings = label_emb(labels) # N x K
+            style_step = torch.cat([style_step, label_embeddings], dim=1)
             if i > 0 and step > 0:
                 out_prev = out
                 
@@ -449,10 +451,10 @@ class Generator(nn.Module):
 
 
 class StyledGenerator(nn.Module):
-    def __init__(self, code_dim=512, n_mlp=8):
+    def __init__(self, code_dim=512, n_mlp=8, num_classes=10):
         super().__init__()
 
-        self.generator = Generator(code_dim)
+        self.generator = Generator(code_dim, num_classes)
 
         layers = [PixelNorm()]
         for i in range(n_mlp):
@@ -464,6 +466,7 @@ class StyledGenerator(nn.Module):
     def forward(
         self,
         input,
+        labels,
         noise=None,
         step=0,
         alpha=-1,
@@ -495,7 +498,7 @@ class StyledGenerator(nn.Module):
 
             styles = styles_norm
 
-        return self.generator(styles, noise, step, alpha, mixing_range=mixing_range)
+        return self.generator(styles, labels, noise, step, alpha, mixing_range=mixing_range)
 
     def mean_style(self, input):
         style = self.style(input).mean(0, keepdim=True)

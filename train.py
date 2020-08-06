@@ -54,7 +54,7 @@ def train(args, dataset, generator, discriminator):
     adjust_lr(g_optimizer, args.lr.get(resolution, 0.001))
     adjust_lr(d_optimizer, args.lr.get(resolution, 0.001))
 
-    pbar = tqdm(range(3_000_000))
+    pbar = tqdm(range(3000000))
 
     requires_grad(generator, False)
     requires_grad(discriminator, True)
@@ -105,18 +105,18 @@ def train(args, dataset, generator, discriminator):
                     'd_optimizer': d_optimizer.state_dict(),
                     'g_running': g_running.state_dict(),
                 },
-                f'checkpoint/train_step-{ckpt_step}.model',
+                'checkpoint/train_step-{}.model'.format(ckpt_step),
             )
 
             adjust_lr(g_optimizer, args.lr.get(resolution, 0.001))
             adjust_lr(d_optimizer, args.lr.get(resolution, 0.001))
 
         try:
-            real_image = next(data_loader)
+            real_image, labels = next(data_loader)
 
         except (OSError, StopIteration):
             data_loader = iter(loader)
-            real_image = next(data_loader)
+            real_image, labels = next(data_loader)
 
         used_sample += real_image.shape[0]
 
@@ -225,13 +225,13 @@ def train(args, dataset, generator, discriminator):
                 for _ in range(gen_i):
                     images.append(
                         g_running(
-                            torch.randn(gen_j, code_size).cuda(), step=step, alpha=alpha
+                            torch.randn(gen_j, labels[:5], code_size).cuda(), step=step, alpha=alpha
                         ).data.cpu()
                     )
 
             utils.save_image(
                 torch.cat(images, 0),
-                f'sample/{str(i + 1).zfill(6)}.png',
+                'sample/{}.png'.format(str(i+1).zfill(6)),
                 nrow=gen_i,
                 normalize=True,
                 range=(-1, 1),
@@ -239,12 +239,12 @@ def train(args, dataset, generator, discriminator):
 
         if (i + 1) % 10000 == 0:
             torch.save(
-                g_running.state_dict(), f'checkpoint/{str(i + 1).zfill(6)}.model'
+                g_running.state_dict(), 'checkpoint/{}.model'.format(str(i+1).zfill(6))
             )
 
         state_msg = (
-            f'Size: {4 * 2 ** step}; G: {gen_loss_val:.3f}; D: {disc_loss_val:.3f};'
-            f' Grad: {grad_loss_val:.3f}; Alpha: {alpha:.5f}'
+            'Size: {}; G: {}; D: {};'.format(4*2**step, gen_loss_val, disc_loss, val),
+            ' Grad: {}; Alpha: {}'.format(grad_loss_val, alpha)
         )
 
         pbar.set_description(state_msg)
@@ -261,8 +261,14 @@ if __name__ == '__main__':
     parser.add_argument(
         '--phase',
         type=int,
-        default=600_000,
+        default=120000,
         help='number of samples used for each training phases',
+    )
+    parser.add_argument(
+        '--dataset',
+        type=str,
+        default='cifar10',
+        choices=['cifar10', 'cifar100']
     )
     parser.add_argument('--lr', default=0.001, type=float, help='learning rate')
     parser.add_argument('--sched', action='store_true', help='use lr scheduling')
@@ -323,10 +329,12 @@ if __name__ == '__main__':
         [
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True),
         ]
     )
-
+    if args.dataset == 'cifar10':
+        dataset = torchvision.datasets.CIFAR10(root='data/cifar/cifar10', train=True, transform=transform, download=True)
+    elif args.dataset == 'cifar100':
+        dataset = torchvision.datasets.CIFAR100(root='data/cifar/cifar100', train=True, transform=transform, download=True)
     dataset = MultiResolutionDataset(args.path, transform)
 
     if args.sched:
