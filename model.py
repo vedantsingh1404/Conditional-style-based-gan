@@ -504,19 +504,19 @@ class StyledGenerator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, fused=True, from_rgb_activate=False):
+    def __init__(self, fused=True, from_rgb_activate=False, num_classes=10):
         super().__init__()
 
         self.progression = nn.ModuleList(
             [
-                ConvBlock(16, 32, 3, 1, downsample=True, fused=fused),  # 512
-                ConvBlock(32, 64, 3, 1, downsample=True, fused=fused),  # 256
-                ConvBlock(64, 128, 3, 1, downsample=True, fused=fused),  # 128
-                ConvBlock(128, 256, 3, 1, downsample=True, fused=fused),  # 64
-                ConvBlock(256, 512, 3, 1, downsample=True),  # 32
-                ConvBlock(512, 512, 3, 1, downsample=True),  # 16
-                ConvBlock(512, 512, 3, 1, downsample=True),  # 8
-                ConvBlock(512, 512, 3, 1, downsample=True),  # 4
+                ConvBlock(16, 32, 3, 1),  # 512
+                ConvBlock(32, 64, 3, 1),  # 256
+                ConvBlock(64, 128, 3, 1),  # 128
+                ConvBlock(128, 256, 3, 1),  # 64
+                ConvBlock(256, 512, 3, 1),  # 32
+                ConvBlock(512, 512, 3, 1),  # 16
+                ConvBlock(512, 512, 3, 1),  # 8
+                ConvBlock(512, 512, 3, 1),  # 4
                 ConvBlock(513, 512, 3, 1, 4, 0),
             ]
         )
@@ -526,7 +526,7 @@ class Discriminator(nn.Module):
                 return nn.Sequential(EqualConv2d(3, out_channel, 1), nn.LeakyReLU(0.2))
 
             else:
-                return EqualConv2d(3, out_channel, 1)
+                return EqualConv2d(3 + num_classes, out_channel, 1)
 
         self.from_rgb = nn.ModuleList(
             [
@@ -545,13 +545,15 @@ class Discriminator(nn.Module):
         # self.blur = Blur()
 
         self.n_layer = len(self.progression)
-
+        self.label_emb = nn.Embedding(num_classes, num_classes)
         self.linear = EqualLinear(512, 1)
 
-    def forward(self, input, step=0, alpha=-1):
+    def forward(self, input, labels, step=0, alpha=-1):
         for i in range(step, -1, -1):
             index = self.n_layer - i - 1
-
+            label_embeddings = label_emb(labels) # N x K
+            label_embeddings = torch.repeat(1, 1, input.size(2), input.size(3))
+            input = torch.cat([input, label_embeddings], dim=1)
             if i == step:
                 out = self.from_rgb[index](input)
 
