@@ -377,15 +377,15 @@ class Generator(nn.Module):
 
         self.progression = nn.ModuleList(
             [
-                StyledConvBlock(512, 512, 3, 1, initial=True, style_dim=code_dim + num_classes),  # 4
-                StyledConvBlock(512, 512, 3, 1, style_dim=code_dim + num_classes),  # 8
-                StyledConvBlock(512, 512, 3, 1, style_dim=code_dim + num_classes),  # 16
-                StyledConvBlock(512, 512, 3, 1, style_dim=code_dim + num_classes),  # 32
-                StyledConvBlock(512, 256, 3, 1, style_dim=code_dim + num_classes),  # 64
-                StyledConvBlock(256, 128, 3, 1, style_dim=code_dim + num_classes),  # 128
-                StyledConvBlock(128, 64, 3, 1, style_dim=code_dim + num_classes),  # 256
-                StyledConvBlock(64, 32, 3, 1, style_dim=code_dim + num_classes),  # 512
-                StyledConvBlock(32, 16, 3, 1, style_dim=code_dim + num_classes),  # 1024
+                StyledConvBlock(512, 512, 3, 1, initial=True),  # 4
+                StyledConvBlock(512, 512, 3, 1),  # 8
+                StyledConvBlock(512, 512, 3, 1),  # 16
+                StyledConvBlock(512, 512, 3, 1),  # 32
+                StyledConvBlock(512, 256, 3, 1),  # 64
+                StyledConvBlock(256, 128, 3, 1),  # 128
+                StyledConvBlock(128, 64, 3, 1),  # 256
+                StyledConvBlock(64, 32, 3, 1),  # 512
+                StyledConvBlock(32, 16, 3, 1),  # 1024
             ]
         )
 
@@ -404,9 +404,8 @@ class Generator(nn.Module):
         )
 
         # self.blur = Blur()
-        self.label_emb = nn.Embedding(num_classes, num_classes)
 
-    def forward(self, style, labels, noise, step=0, alpha=-1, mixing_range=(-1, -1)):
+    def forward(self, style, noise, step=0, alpha=-1, mixing_range=(-1, -1)):
         out = noise[0]
 
         if len(style) < 2:
@@ -430,8 +429,6 @@ class Generator(nn.Module):
 
                 else:
                     style_step = style[0]
-            label_embeddings = label_emb(labels) # N x K
-            style_step = torch.cat([style_step, label_embeddings], dim=1)
             if i > 0 and step > 0:
                 out_prev = out
                 
@@ -457,11 +454,14 @@ class StyledGenerator(nn.Module):
         self.generator = Generator(code_dim, num_classes)
 
         layers = [PixelNorm()]
-        for i in range(n_mlp):
-            layers.append(EqualLinear(code_dim, code_dim))
+        for i in range(n_mlp - 1):
+            layers.append(EqualLinear(code_dim + num_classes, code_dim + num_classes))
             layers.append(nn.LeakyReLU(0.2))
+        layers.append(EqualLinear(code_dim + num_classes, code_dim))
+        layers.append(nn.LeakyReLU(0.2))
 
         self.style = nn.Sequential(*layers)
+        self.label_emb = nn.Embedding(num_classes, num_classes)
 
     def forward(
         self,
@@ -477,10 +477,14 @@ class StyledGenerator(nn.Module):
         styles = []
         if type(input) not in (list, tuple):
             input = [input]
-
+        # input -> N x 512
+        # labels -> N x 1
+        # emb -> K x K
+        label_embeddings = label_emb(labels) # -> N x K
+        input = torch.cat([input, label_embeddings], dim=1) # N x (512 + K)
         for i in input:
             styles.append(self.style(i))
-
+        # N x 512
         batch = input[0].shape[0]
 
         if noise is None:
