@@ -124,7 +124,7 @@ def train(args, dataset, generator, discriminator):
         real_image = real_image.cuda()
 
         if args.loss == 'wgan-gp':
-            real_predict = discriminator(real_image, step=step, alpha=alpha)
+            real_predict = discriminator(real_image, labels, step=step, alpha=alpha)
             real_predict = real_predict.mean() - 0.001 * (real_predict ** 2).mean()
             (-real_predict).backward()
 
@@ -335,7 +335,7 @@ if __name__ == '__main__':
         dataset = torchvision.datasets.CIFAR10(root='data/cifar/cifar10', train=True, transform=transform, download=True)
     elif args.dataset == 'cifar100':
         dataset = torchvision.datasets.CIFAR100(root='data/cifar/cifar100', train=True, transform=transform, download=True)
-    dataset = MultiResolutionDataset(args.path, transform)
+    # dataset = MultiResolutionDataset(args.path, transform)
 
     if args.sched:
         args.lr = {128: 0.0015, 256: 0.002, 512: 0.003, 1024: 0.003}

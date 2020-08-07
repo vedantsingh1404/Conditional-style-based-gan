@@ -55,7 +55,7 @@ def equal_lr(module, name='weight'):
 
 class FusedUpsample(nn.Module):
     def __init__(self, in_channel, out_channel, kernel_size, padding=0):
-        super().__init__()
+        super(FusedUpsample, self).__init__()
 
         weight = torch.randn(in_channel, out_channel, kernel_size, kernel_size)
         bias = torch.zeros(out_channel)
@@ -84,7 +84,7 @@ class FusedUpsample(nn.Module):
 
 class FusedDownsample(nn.Module):
     def __init__(self, in_channel, out_channel, kernel_size, padding=0):
-        super().__init__()
+        super(FusedDownsample, self).__init__()
 
         weight = torch.randn(out_channel, in_channel, kernel_size, kernel_size)
         bias = torch.zeros(out_channel)
@@ -113,7 +113,7 @@ class FusedDownsample(nn.Module):
 
 class PixelNorm(nn.Module):
     def __init__(self):
-        super().__init__()
+        super(PixelNorm, self).__init__()
 
     def forward(self, input):
         return input / torch.sqrt(torch.mean(input ** 2, dim=1, keepdim=True) + 1e-8)
@@ -164,7 +164,7 @@ blur = BlurFunction.apply
 
 class Blur(nn.Module):
     def __init__(self, channel):
-        super().__init__()
+        super(Blur, self).__init__()
 
         weight = torch.tensor([[1, 2, 1], [2, 4, 2], [1, 2, 1]], dtype=torch.float32)
         weight = weight.view(1, 1, 3, 3)
@@ -181,7 +181,7 @@ class Blur(nn.Module):
 
 class EqualConv2d(nn.Module):
     def __init__(self, *args, **kwargs):
-        super().__init__()
+        super(EqualConv2d, self).__init__()
 
         conv = nn.Conv2d(*args, **kwargs)
         conv.weight.data.normal_()
@@ -194,7 +194,7 @@ class EqualConv2d(nn.Module):
 
 class EqualLinear(nn.Module):
     def __init__(self, in_dim, out_dim):
-        super().__init__()
+        super(EqualLinear, self).__init__()
 
         linear = nn.Linear(in_dim, out_dim)
         linear.weight.data.normal_()
@@ -218,7 +218,7 @@ class ConvBlock(nn.Module):
         downsample=False,
         fused=False,
     ):
-        super().__init__()
+        super(ConvBlock, self).__init__()
 
         pad1 = padding
         pad2 = padding
@@ -266,7 +266,7 @@ class ConvBlock(nn.Module):
 
 class AdaptiveInstanceNorm(nn.Module):
     def __init__(self, in_channel, style_dim):
-        super().__init__()
+        super(AdaptiveInstanceNorm, self).__init__()
 
         self.norm = nn.InstanceNorm2d(in_channel)
         self.style = EqualLinear(style_dim, in_channel * 2)
@@ -286,7 +286,7 @@ class AdaptiveInstanceNorm(nn.Module):
 
 class NoiseInjection(nn.Module):
     def __init__(self, channel):
-        super().__init__()
+        super(NoiseInjection, self).__init__()
 
         self.weight = nn.Parameter(torch.zeros(1, channel, 1, 1))
 
@@ -296,7 +296,7 @@ class NoiseInjection(nn.Module):
 
 class ConstantInput(nn.Module):
     def __init__(self, channel, size=4):
-        super().__init__()
+        super(ConstantInput, self).__init__()
 
         self.input = nn.Parameter(torch.randn(1, channel, size, size))
 
@@ -319,7 +319,7 @@ class StyledConvBlock(nn.Module):
         upsample=False,
         fused=False,
     ):
-        super().__init__()
+        super(StyledConvBlock, self).__init__()
 
         if initial:
             self.conv1 = ConstantInput(in_channel)
@@ -372,8 +372,8 @@ class StyledConvBlock(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, code_dim, num_classes=10, fused=True):
-        super().__init__()
+    def __init__(self, code_dim, fused=True):
+        super(Generator, self).__init__()
 
         self.progression = nn.ModuleList(
             [
@@ -449,9 +449,9 @@ class Generator(nn.Module):
 
 class StyledGenerator(nn.Module):
     def __init__(self, code_dim=512, n_mlp=8, num_classes=10):
-        super().__init__()
+        super(StyledGenerator, self).__init__()
 
-        self.generator = Generator(code_dim, num_classes)
+        self.generator = Generator(code_dim)
 
         layers = [PixelNorm()]
         for i in range(n_mlp - 1):
@@ -477,9 +477,6 @@ class StyledGenerator(nn.Module):
         styles = []
         if type(input) not in (list, tuple):
             input = [input]
-        # input -> N x 512
-        # labels -> N x 1
-        # emb -> K x K
         label_embeddings = label_emb(labels) # -> N x K
         input = torch.cat([input, label_embeddings], dim=1) # N x (512 + K)
         for i in input:
@@ -502,7 +499,7 @@ class StyledGenerator(nn.Module):
 
             styles = styles_norm
 
-        return self.generator(styles, labels, noise, step, alpha, mixing_range=mixing_range)
+        return self.generator(styles, noise, step, alpha, mixing_range=mixing_range)
 
     def mean_style(self, input):
         style = self.style(input).mean(0, keepdim=True)
@@ -512,7 +509,7 @@ class StyledGenerator(nn.Module):
 
 class Discriminator(nn.Module):
     def __init__(self, fused=True, from_rgb_activate=False, num_classes=10):
-        super().__init__()
+        super(Discriminator, self).__init__()
 
         self.progression = nn.ModuleList(
             [
