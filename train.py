@@ -130,7 +130,7 @@ def train(args, dataset, generator, discriminator):
 
         elif args.loss == 'r1':
             real_image.requires_grad = True
-            real_scores = discriminator(real_image, step=step, alpha=alpha)
+            real_scores = discriminator(real_image, labels, step=step, alpha=alpha)
             real_predict = F.softplus(-real_scores).mean()
             real_predict.backward(retain_graph=True)
 
@@ -159,8 +159,8 @@ def train(args, dataset, generator, discriminator):
             gen_in1 = gen_in1.squeeze(0)
             gen_in2 = gen_in2.squeeze(0)
 
-        fake_image = generator(gen_in1, step=step, alpha=alpha)
-        fake_predict = discriminator(fake_image, step=step, alpha=alpha)
+        fake_image = generator(gen_in1, labels, step=step, alpha=alpha)
+        fake_predict = discriminator(fake_image, labels, step=step, alpha=alpha)
 
         if args.loss == 'wgan-gp':
             fake_predict = fake_predict.mean()
@@ -169,7 +169,7 @@ def train(args, dataset, generator, discriminator):
             eps = torch.rand(b_size, 1, 1, 1).cuda()
             x_hat = eps * real_image.data + (1 - eps) * fake_image.data
             x_hat.requires_grad = True
-            hat_predict = discriminator(x_hat, step=step, alpha=alpha)
+            hat_predict = discriminator(x_hat, labels, step=step, alpha=alpha)
             grad_x_hat = grad(
                 outputs=hat_predict.sum(), inputs=x_hat, create_graph=True
             )[0]
@@ -198,7 +198,7 @@ def train(args, dataset, generator, discriminator):
 
             fake_image = generator(gen_in2, step=step, alpha=alpha)
 
-            predict = discriminator(fake_image, step=step, alpha=alpha)
+            predict = discriminator(fake_image, labels, step=step, alpha=alpha)
 
             if args.loss == 'wgan-gp':
                 loss = -predict.mean()
